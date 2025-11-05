@@ -60,3 +60,10 @@ sudo mn --topo tree,depth=3,fanout=5 --mac --link tc,bw=30
 
 ![Imagem do mininet 11 (caso não carregue, as imagens estão dentro da pasta imagens)](./imagens/mininet11.png)
 
+| Comando `ifconfig` para ver informações específicas de um nó
+
+![Imagem do mininet 12 (caso não carregue, as imagens estão dentro da pasta imagens)](./imagens/mininet12.png)
+
+### c) Ilustração da topologia da rede 
+
+![Imagem do mininet 13 (caso não carregue, as imagens estão dentro da pasta imagens)](./imagens/mininet13.png)
