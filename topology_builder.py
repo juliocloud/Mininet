@@ -2,115 +2,119 @@ import sys
 import networkx as nx
 import matplotlib.pyplot as plt
 import re
-import matplotlib.patches as mpatches # Import for creating legend patches
+import matplotlib.patches as mpatches
 
-def read_multiline(prompt: str, end_token: str = "FIM") -> str:
-    print(prompt)
-    print(f"(Cole o texto e finalize com uma linha contendo apenas a palavra {end_token})")
-    lines = []
+def obter_entrada_usuario(mensagem_prompt, token_parada="FIM"):
+    print(mensagem_prompt)
+    print(f"(Para finalizar, digite '{token_parada}' em uma linha separada e pressione Enter)")
+    buffer_linhas = []
     while True:
         try:
-            line = input()
+            linha = input()
+            if linha.strip().upper() == token_parada:
+                break
+            buffer_linhas.append(linha)
         except EOFError:
             break
-        if line.strip() == end_token:
-            break
-        lines.append(line)
-    return "\n".join(lines)
+    return "\n".join(buffer_linhas)
 
-def parse_dump_output(dump_output):
-    nodes = {}
-    pattern = re.compile(r'<(\w+)\s+([\w\d.-]+):')
-    for line in dump_output.strip().split('\n'):
-        match = pattern.search(line.strip())
-        if match:
-            node_type_full, node_name = match.groups()
-            node_type = 'Desconhecido'
-            if 'Host' in node_type_full:
-                node_type = 'Host'
-            elif 'Switch' in node_type_full:
-                node_type = 'Switch'
-            elif 'Controller' in node_type_full:
-                node_type = 'Controller'
-            nodes[node_name] = node_type
-    return nodes
+def extrair_nos_do_dump(saida_dump):
+    dispositivos = {}
+    regex_padrao = re.compile(r'<(\w+)\s+([\w\d.-]+):')
+    for linha in saida_dump.strip().split('\n'):
+        correspondencia = regex_padrao.search(linha.strip())
+        if correspondencia:
+            tipo_completo, nome_dispositivo = correspondencia.groups()
+            categoria = 'Desconhecido'
+            if 'Host' in tipo_completo:
+                categoria = 'Host'
+            elif 'Switch' in tipo_completo:
+                categoria = 'Switch'
+            elif 'Controller' in tipo_completo:
+                categoria = 'Controller'
+            dispositivos[nome_dispositivo] = categoria
+    return dispositivos
 
-def parse_links_output(links_output):
-    links = []
-    pattern = re.compile(r'([\w\d.-]+)-eth\d+\s*<->\s*([\w\d.-]+)-eth\d+')
-    for line in links_output.strip().split('\n'):
-        match = pattern.search(line.strip())
-        if match:
-            links.append((match.group(1), match.group(2)))
-    return links
+def extrair_conexoes_dos_links(saida_links):
+    conexoes = []
+    regex_padrao = re.compile(r'([\w\d.-]+)-eth\d+\s*<->\s*([\w\d.-]+)-eth\d+')
+    for linha in saida_links.strip().split('\n'):
+        correspondencia = regex_padrao.search(linha.strip())
+        if correspondencia:
+            ponta_a, ponta_b = correspondencia.groups()
+            conexoes.append((ponta_a, ponta_b))
+    return conexoes
 
-def visualize_topology(nodes, links):
-    if not nodes and not links:
-        print("Erro: Não foi possível fazer o parsing da topologia")
+def desenhar_grafico_topologia(dispositivos, conexoes):
+    if not dispositivos and not conexoes:
+        print("Aviso: Não foi possível analisar a topologia. Nenhum dado para exibir.")
         return
 
-    G = nx.Graph()
+    grafo = nx.Graph()
 
-    all_node_names = set(nodes.keys())
-    for a, b in links:
-        all_node_names.add(a)
-        all_node_names.add(b)
+    nomes_dispositivos_encontrados = set(dispositivos.keys())
+    for dev_a, dev_b in conexoes:
+        nomes_dispositivos_encontrados.add(dev_a)
+        nomes_dispositivos_encontrados.add(dev_b)
 
-    node_colors = []
-    # Create dictionaries to map node types to colors and legend labels
-    color_map = {
+    for nome in nomes_dispositivos_encontrados:
+        if nome not in dispositivos:
+            dispositivos[nome] = 'Desconhecido'
+
+    cores_mapa = {
         'Host': 'skyblue',
         'Switch': 'lightgreen',
         'Controller': 'salmon',
         'Desconhecido': 'grey'
     }
     
-    # Ensure all nodes mentioned in links are also in the nodes dictionary with a type
-    for node_name in all_node_names:
-        if node_name not in nodes:
-            nodes[node_name] = 'Desconhecido' # Assign a default type if not found in dump output
+    lista_cores_nos = [cores_mapa.get(dispositivos[nome], 'grey') for nome in sorted(list(nomes_dispositivos_encontrados))]
 
-    for node_name in sorted(all_node_names):
-        G.add_node(node_name)
-        node_type = nodes.get(node_name, 'Desconhecido')
-        node_colors.append(color_map.get(node_type, 'grey'))
+    for nome_dispositivo in sorted(list(nomes_dispositivos_encontrados)):
+        grafo.add_node(nome_dispositivo)
 
-    for a, b in links:
-        if G.has_node(a) and G.has_node(b):
-            G.add_edge(a, b)
+    for dev_a, dev_b in conexoes:
+        if grafo.has_node(dev_a) and grafo.has_node(dev_b):
+            grafo.add_edge(dev_a, dev_b)
         else:
-            print(f"Aviso: pulando um link com pelo menos um nó desconhecido: {(a, b)}")
+            print(f"Alerta: Ignorando conexão com nós ausentes: {dev_a} <-> {dev_b}")
 
-    print("\nGerando visualização, pode ser demorado.")
-    plt.figure(figsize=(20, 20))
-    pos = nx.kamada_kawai_layout(G)
+    print("\nIniciando a geração do gráfico da topologia...")
+    
+    figura, eixo = plt.subplots(figsize=(20, 20))
+    posicoes = nx.kamada_kawai_layout(grafo)
+    
     nx.draw(
-        G, pos, with_labels=True, node_color=node_colors,
-        node_size=1800, font_size=9, font_weight='bold', edge_color='gray'
+        grafo, posicoes, ax=eixo, with_labels=True, 
+        node_color=lista_cores_nos, node_size=1800, 
+        font_size=9, font_weight='bold', edge_color='gray'
     )
-    plt.title("Visualização de topologia Mininet", size=20)
+    
+    eixo.set_title("Visualização da Topologia da Rede Mininet", size=20)
 
-    # Create legend patches
-    legend_patches = [
-        mpatches.Patch(color=color_map['Host'], label='Host'),
-        mpatches.Patch(color=color_map['Switch'], label='Switch'),
-        mpatches.Patch(color=color_map['Controller'], label='Controller'),
-        mpatches.Patch(color=color_map['Desconhecido'], label='Desconhecido')
+    elementos_legenda = [
+        mpatches.Patch(color='skyblue', label='Host'),
+        mpatches.Patch(color='lightgreen', label='Switch'),
+        mpatches.Patch(color='salmon', label='Controller'),
+        mpatches.Patch(color='grey', label='Desconhecido')
     ]
-    plt.legend(handles=legend_patches, loc='lower right', fontsize=12)
+    eixo.legend(handles=elementos_legenda, loc='lower right', fontsize=12)
 
     plt.show()
 
+def main():
+    entrada_dump = obter_entrada_usuario("Cole aqui a saída do comando 'dump' do Mininet:")
+    entrada_links = obter_entrada_usuario("Agora, cole a saída do comando 'links' do Mininet:")
+
+    dispositivos_mapeados = extrair_nos_do_dump(entrada_dump)
+    conexoes_mapeadas = extrair_conexoes_dos_links(entrada_links)
+
+    print("\n--- RESUMO DA ANÁLISE ---")
+    print(f"Número de nós identificados: {len(dispositivos_mapeados)}")
+    print(f"Número de conexões identificadas: {len(conexoes_mapeadas)}")
+    print("-------------------------\n")
+
+    desenhar_grafico_topologia(dispositivos_mapeados, conexoes_mapeadas)
+
 if __name__ == "__main__":
-    dump_output = read_multiline("Cole a saída do comando 'dump' do Mininet:", end_token="FIM")
-    links_output = read_multiline("Cole a saída do comando 'links' do Mininet:", end_token="FIM")
-
-    nodes = parse_dump_output(dump_output)
-    links = parse_links_output(links_output)
-
-    print("\n--- PARSING SUMMARY ---")
-    print(f"Realizado o parse de {len(nodes)} nós do comando 'dump'.")
-    print(f"Realizado o parse de {len(links)} links do comando 'links'.")
-    print("-----------------------")
-
-    visualize_topology(nodes, links)
+    main()
