@@ -66,6 +66,8 @@ sudo mn --topo tree,depth=3,fanout=5 --mac --link tc,bw=30
 
 ### c) Ilustração da topologia da rede 
 
+Esta ilustração foi criada utilizando o [topology_builder.py](../topology_builder.py), uma ferramenta que criei, semelhante à ferramenta disponibilida nos PDFs, para criar a ilustração da topologia baseada no comando dump, e links
+
 ![Imagem do mininet 13 (caso não carregue, as imagens estão dentro da pasta imagens)](./imagens/mininet13.png)
 
 ### d) Testes de ping 
