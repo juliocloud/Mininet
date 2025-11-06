@@ -2,6 +2,7 @@ import sys
 import networkx as nx
 import matplotlib.pyplot as plt
 import re
+import matplotlib.patches as mpatches # Import for creating legend patches
 
 def read_multiline(prompt: str, end_token: str = "FIM") -> str:
     print(prompt)
@@ -56,18 +57,23 @@ def visualize_topology(nodes, links):
         all_node_names.add(b)
 
     node_colors = []
+    # Create dictionaries to map node types to colors and legend labels
+    color_map = {
+        'Host': 'skyblue',
+        'Switch': 'lightgreen',
+        'Controller': 'salmon',
+        'Desconhecido': 'grey'
+    }
+    
+    # Ensure all nodes mentioned in links are also in the nodes dictionary with a type
+    for node_name in all_node_names:
+        if node_name not in nodes:
+            nodes[node_name] = 'Desconhecido' # Assign a default type if not found in dump output
+
     for node_name in sorted(all_node_names):
         G.add_node(node_name)
         node_type = nodes.get(node_name, 'Desconhecido')
-
-        if node_type == 'Host':
-            node_colors.append('skyblue')
-        elif node_type == 'Switch':
-            node_colors.append('lightgreen')
-        elif node_type == 'Controller':
-            node_colors.append('salmon')
-        else:
-            node_colors.append('grey')
+        node_colors.append(color_map.get(node_type, 'grey'))
 
     for a, b in links:
         if G.has_node(a) and G.has_node(b):
@@ -83,6 +89,16 @@ def visualize_topology(nodes, links):
         node_size=1800, font_size=9, font_weight='bold', edge_color='gray'
     )
     plt.title("Visualização de topologia Mininet", size=20)
+
+    # Create legend patches
+    legend_patches = [
+        mpatches.Patch(color=color_map['Host'], label='Host'),
+        mpatches.Patch(color=color_map['Switch'], label='Switch'),
+        mpatches.Patch(color=color_map['Controller'], label='Controller'),
+        mpatches.Patch(color=color_map['Desconhecido'], label='Desconhecido')
+    ]
+    plt.legend(handles=legend_patches, loc='lower right', fontsize=12)
+
     plt.show()
 
 if __name__ == "__main__":
